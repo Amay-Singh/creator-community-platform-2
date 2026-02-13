@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Inter } from "next/font/google";
 import { AuthProvider } from "@/lib/supabase/auth-context";
+import { ThemeProvider } from "@/lib/theme-provider";
 import { OfflineIndicator } from "@/components/ui/offline-indicator";
 import "./globals.css";
 
@@ -45,10 +46,12 @@ export default function RootLayout({
           Skip to main content
         </a>
         <AuthProvider>
-          <main id="main-content">
-            {children}
-          </main>
-          <OfflineIndicator />
+          <ThemeProvider>
+            <main id="main-content">
+              {children}
+            </main>
+            <OfflineIndicator />
+          </ThemeProvider>
         </AuthProvider>
       </body>
     </html>
