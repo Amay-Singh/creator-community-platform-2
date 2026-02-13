@@ -26,7 +26,22 @@ export default function RegisterPage() {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [selectedCategory, setSelectedCategory] = useState<CreatorCategory | null>(null);
+  const [formState, setFormState] = useState({
+    name: "",
+    username: "",
+    email: "",
+    password: "",
+    bio: "",
+    location: "",
+    instagram: "",
+    youtube: "",
+    website: "",
+  });
   const router = useRouter();
+
+  function updateField(field: string, value: string) {
+    setFormState((prev) => ({ ...prev, [field]: value }));
+  }
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -34,23 +49,21 @@ export default function RegisterPage() {
       setStep(step + 1);
       return;
     }
+    await doSignUp();
+  }
+
+  async function doSignUp() {
     setIsLoading(true);
     setError(null);
 
-    const formData = new FormData(e.currentTarget);
-    const email = formData.get("email") as string;
-    const password = formData.get("password") as string;
-    const fullName = formData.get("name") as string;
-    const username = formData.get("username") as string;
-
     const supabase = createClient();
     const { error: authError } = await supabase.auth.signUp({
-      email,
-      password,
+      email: formState.email,
+      password: formState.password,
       options: {
         data: {
-          full_name: fullName,
-          username,
+          full_name: formState.name,
+          username: formState.username,
           category: selectedCategory,
         },
       },
@@ -124,6 +137,8 @@ export default function RegisterPage() {
                 name="name"
                 required
                 autoComplete="name"
+                value={formState.name}
+                onChange={(e) => updateField("name", e.target.value)}
                 icon={<User className="h-4 w-4" />}
               />
               <Input
@@ -132,6 +147,8 @@ export default function RegisterPage() {
                 name="username"
                 required
                 autoComplete="username"
+                value={formState.username}
+                onChange={(e) => updateField("username", e.target.value)}
                 icon={<User className="h-4 w-4" />}
               />
               <Input
@@ -140,6 +157,8 @@ export default function RegisterPage() {
                 name="email"
                 required
                 autoComplete="email"
+                value={formState.email}
+                onChange={(e) => updateField("email", e.target.value)}
                 icon={<Mail className="h-4 w-4" />}
               />
               <Input
@@ -148,6 +167,8 @@ export default function RegisterPage() {
                 name="password"
                 required
                 autoComplete="new-password"
+                value={formState.password}
+                onChange={(e) => updateField("password", e.target.value)}
                 icon={<Lock className="h-4 w-4" />}
               />
             </>
@@ -200,25 +221,31 @@ export default function RegisterPage() {
                 Add links to your existing profiles so others can see your work.
               </p>
               <Input
-                label="Instagram URL"
+                label="Instagram URL (optional)"
                 type="url"
                 name="instagram"
                 placeholder="https://instagram.com/..."
                 autoComplete="off"
+                value={formState.instagram}
+                onChange={(e) => updateField("instagram", e.target.value)}
               />
               <Input
-                label="YouTube URL"
+                label="YouTube URL (optional)"
                 type="url"
                 name="youtube"
                 placeholder="https://youtube.com/..."
                 autoComplete="off"
+                value={formState.youtube}
+                onChange={(e) => updateField("youtube", e.target.value)}
               />
               <Input
-                label="Portfolio / Website URL"
+                label="Portfolio / Website URL (optional)"
                 type="url"
                 name="website"
                 placeholder="https://..."
                 autoComplete="off"
+                value={formState.website}
+                onChange={(e) => updateField("website", e.target.value)}
               />
             </>
           )}
@@ -233,6 +260,17 @@ export default function RegisterPage() {
               >
                 <ArrowLeft className="h-4 w-4" />
                 Back
+              </Button>
+            )}
+            {step === 3 && (
+              <Button
+                type="button"
+                variant="outline"
+                className="flex-1"
+                isLoading={isLoading}
+                onClick={() => doSignUp()}
+              >
+                Skip & Create
               </Button>
             )}
             <Button
