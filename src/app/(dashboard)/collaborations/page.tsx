@@ -1,10 +1,13 @@
 "use client";
 
-import { useState } from "react";
-import { Plus, FolderOpen, Archive } from "lucide-react";
+import { useState, useEffect } from "react";
+import { Plus, FolderOpen, Archive, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { ProjectCard, type Project } from "@/components/collaboration/project-card";
 import { cn } from "@/lib/utils";
+import { useAuth } from "@/lib/supabase/auth-context";
+import { createClient } from "@/lib/supabase/client";
 
 const mockProjects: Project[] = [
   {
@@ -73,8 +76,74 @@ const tabs: { id: TabId; label: string; icon: React.ElementType }[] = [
 
 export default function CollaborationsPage() {
   const [activeTab, setActiveTab] = useState<TabId>("active");
+  const [projects, setProjects] = useState<Project[]>(mockProjects);
+  const [showCreate, setShowCreate] = useState(false);
+  const [newTitle, setNewTitle] = useState("");
+  const [newDesc, setNewDesc] = useState("");
+  const [creating, setCreating] = useState(false);
+  const { user } = useAuth();
 
-  const filtered = mockProjects.filter((p) => p.status === activeTab);
+  useEffect(() => {
+    async function loadProjects() {
+      const supabase = createClient();
+      const { data } = await supabase
+        .from("collaborations")
+        .select("*, collaboration_members(user_id, profiles(full_name))")
+        .order("created_at", { ascending: false });
+      if (data && data.length > 0) {
+        const dbProjects: Project[] = data.map((c: Record<string, unknown>) => ({
+          id: c.id as string,
+          title: c.title as string,
+          description: (c.description as string) || "",
+          status: (c.status as "active" | "completed" | "archived") || "active",
+          members: ((c.collaboration_members as Record<string, unknown>[]) || []).map((m: Record<string, unknown>) => ({
+            name: ((m.profiles as Record<string, unknown>)?.full_name as string) || "Member",
+          })),
+          tasksTotal: 0,
+          tasksDone: 0,
+          createdAt: new Date(c.created_at as string).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }),
+        }));
+        setProjects([...dbProjects, ...mockProjects]);
+      }
+    }
+    loadProjects();
+  }, []);
+
+  async function handleCreateProject() {
+    if (!newTitle.trim() || !user) return;
+    setCreating(true);
+    const supabase = createClient();
+    const { data, error } = await supabase
+      .from("collaborations")
+      .insert({ title: newTitle, description: newDesc, owner_id: user.id })
+      .select()
+      .single();
+    if (data && !error) {
+      await supabase.from("collaboration_members").insert({
+        collaboration_id: data.id,
+        user_id: user.id,
+        role: "owner",
+        status: "accepted",
+      });
+      const newProject: Project = {
+        id: data.id,
+        title: data.title,
+        description: data.description || "",
+        status: "active",
+        members: [{ name: user.user_metadata?.full_name || "You" }],
+        tasksTotal: 0,
+        tasksDone: 0,
+        createdAt: new Date().toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }),
+      };
+      setProjects((prev) => [newProject, ...prev]);
+    }
+    setShowCreate(false);
+    setNewTitle("");
+    setNewDesc("");
+    setCreating(false);
+  }
+
+  const filtered = projects.filter((p) => p.status === activeTab);
 
   return (
     <div className="mx-auto max-w-6xl space-y-6">
@@ -83,7 +152,7 @@ export default function CollaborationsPage() {
           <h1 className="text-2xl font-bold text-foreground">Collaborations</h1>
           <p className="mt-1 text-sm text-muted-foreground">Manage your projects and team work</p>
         </div>
-        <Button variant="gradient">
+        <Button variant="gradient" onClick={() => setShowCreate(true)}>
           <Plus className="h-4 w-4" />
           New Project
         </Button>
@@ -109,7 +178,7 @@ export default function CollaborationsPage() {
               "flex h-5 min-w-5 items-center justify-center rounded-full px-1 text-[10px] font-bold",
               activeTab === tab.id ? "bg-primary/10 text-primary" : "bg-muted text-muted-foreground"
             )}>
-              {mockProjects.filter((p) => p.status === tab.id).length}
+              {projects.filter((p) => p.status === tab.id).length}
             </span>
           </button>
         ))}
@@ -128,6 +197,36 @@ export default function CollaborationsPage() {
           <p className="mt-1 text-sm text-muted-foreground">
             {activeTab === "active" ? "Create a new project to get started" : `You don't have any ${activeTab} projects yet`}
           </p>
+        </div>
+      )}
+      {/* Create Project Modal */}
+      {showCreate && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
+          <div className="w-full max-w-md rounded-2xl border border-border bg-card p-6 shadow-xl">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-lg font-bold text-card-foreground">New Project</h2>
+              <button onClick={() => setShowCreate(false)} className="text-muted-foreground hover:text-foreground">
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+            <div className="space-y-4">
+              <Input label="Project Title" value={newTitle} onChange={(e) => setNewTitle(e.target.value)} required />
+              <div>
+                <label className="text-xs font-medium text-muted-foreground">Description</label>
+                <textarea
+                  value={newDesc}
+                  onChange={(e) => setNewDesc(e.target.value)}
+                  rows={3}
+                  className="mt-1 w-full rounded-xl border border-border bg-background px-4 py-3 text-sm text-foreground placeholder:text-muted-foreground focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20 resize-none"
+                  placeholder="Describe your project..."
+                />
+              </div>
+              <div className="flex gap-3">
+                <Button variant="outline" className="flex-1" onClick={() => setShowCreate(false)}>Cancel</Button>
+                <Button variant="gradient" className="flex-1" onClick={handleCreateProject} isLoading={creating}>Create Project</Button>
+              </div>
+            </div>
+          </div>
         </div>
       )}
     </div>
