@@ -1,9 +1,10 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { CreatorCard } from "@/components/discover/creator-card";
 import { SearchFilters, type FilterState } from "@/components/discover/search-filters";
 import { PersonalityQuiz } from "@/components/discover/personality-quiz";
+import { createClient } from "@/lib/supabase/client";
 import type { User } from "@/types";
 
 const mockCreators: User[] = [
@@ -126,13 +127,51 @@ const mockCreators: User[] = [
 export default function ExplorePage() {
   const [view, setView] = useState<"grid" | "list">("grid");
   const [searchQuery, setSearchQuery] = useState("");
+  const [creators, setCreators] = useState<User[]>(mockCreators);
   const [filters, setFilters] = useState<FilterState>({
     categories: [],
     experience: [],
     location: "",
   });
 
-  const filteredCreators = mockCreators.filter((creator) => {
+  useEffect(() => {
+    async function loadCreators() {
+      const supabase = createClient();
+      const { data } = await supabase
+        .from("profiles")
+        .select("*")
+        .order("created_at", { ascending: false })
+        .limit(50);
+      if (data && data.length > 0) {
+        const dbCreators: User[] = data.map((p) => ({
+          id: p.id,
+          email: p.email || "",
+          name: p.full_name || p.username || "Creator",
+          username: p.username || "user",
+          avatar: p.avatar_url || undefined,
+          bio: p.bio || "",
+          category: "other" as const,
+          location: p.location || "",
+          skills: p.skills || [],
+          externalLinks: [],
+          followers: 0,
+          following: 0,
+          collaborations: 0,
+          profileHealth: p.health_score || 50,
+          isPremium: p.is_premium || false,
+          createdAt: p.created_at,
+          updatedAt: p.updated_at,
+        }));
+        // Merge DB creators first, then mock data
+        const dbIds = new Set(dbCreators.map((c) => c.id));
+        const uniqueMock = mockCreators.filter((c) => !dbIds.has(c.id));
+        setCreators([...dbCreators, ...uniqueMock]);
+      }
+    }
+    loadCreators();
+  }, []);
+
+  const filteredCreators = creators.filter((creator) => {
     if (searchQuery) {
       const q = searchQuery.toLowerCase();
       const match =
