@@ -1,10 +1,13 @@
 "use client";
 
+import { useState } from "react";
 import Link from "next/link";
 import { MapPin, Sparkles } from "lucide-react";
 import { Avatar } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { useAuth } from "@/lib/supabase/auth-context";
+import { createClient } from "@/lib/supabase/client";
 import type { User } from "@/types";
 
 interface CreatorCardProps {
@@ -14,6 +17,42 @@ interface CreatorCardProps {
 }
 
 export function CreatorCard({ creator, view = "grid", isAiRecommended }: CreatorCardProps) {
+  const [isFollowing, setIsFollowing] = useState(false);
+  const [followLoading, setFollowLoading] = useState(false);
+  const [collabSent, setCollabSent] = useState(false);
+  const { user } = useAuth();
+
+  async function handleFollow() {
+    if (!user) return;
+    setFollowLoading(true);
+    const supabase = createClient();
+    if (isFollowing) {
+      await supabase.from("followers").delete().match({ follower_id: user.id, following_id: creator.id });
+      setIsFollowing(false);
+    } else {
+      await supabase.from("followers").insert({ follower_id: user.id, following_id: creator.id });
+      setIsFollowing(true);
+    }
+    setFollowLoading(false);
+  }
+
+  async function handleCollaborate() {
+    if (!user) return;
+    const supabase = createClient();
+    const { data } = await supabase
+      .from("collaborations")
+      .insert({ title: `Collab with ${creator.name}`, description: `Collaboration invite from ${user.user_metadata?.full_name || "a creator"}`, owner_id: user.id })
+      .select()
+      .single();
+    if (data) {
+      await supabase.from("collaboration_members").insert([
+        { collaboration_id: data.id, user_id: user.id, role: "owner", status: "accepted" },
+        { collaboration_id: data.id, user_id: creator.id, role: "member", status: "pending" },
+      ]);
+      setCollabSent(true);
+    }
+  }
+
   if (view === "list") {
     return (
       <div className="flex items-center gap-4 rounded-2xl border border-border bg-card p-4 shadow-card transition-all duration-200 hover:shadow-card-hover">
@@ -55,8 +94,12 @@ export function CreatorCard({ creator, view = "grid", isAiRecommended }: Creator
           </div>
         </div>
         <div className="flex gap-2">
-          <Button variant="gradient" size="sm">Follow</Button>
-          <Button variant="outline" size="sm">Collaborate</Button>
+          <Button variant={isFollowing ? "outline" : "gradient"} size="sm" onClick={handleFollow} isLoading={followLoading}>
+            {isFollowing ? "Following" : "Follow"}
+          </Button>
+          <Button variant="outline" size="sm" onClick={handleCollaborate} disabled={collabSent}>
+            {collabSent ? "Sent" : "Collaborate"}
+          </Button>
         </div>
       </div>
     );
@@ -129,8 +172,12 @@ export function CreatorCard({ creator, view = "grid", isAiRecommended }: Creator
       </div>
 
       <div className="mt-4 flex gap-2">
-        <Button variant="gradient" size="sm" className="flex-1">Follow</Button>
-        <Button variant="outline" size="sm" className="flex-1">Collaborate</Button>
+        <Button variant={isFollowing ? "outline" : "gradient"} size="sm" className="flex-1" onClick={handleFollow} isLoading={followLoading}>
+          {isFollowing ? "Following" : "Follow"}
+        </Button>
+        <Button variant="outline" size="sm" className="flex-1" onClick={handleCollaborate} disabled={collabSent}>
+          {collabSent ? "Invite Sent" : "Collaborate"}
+        </Button>
       </div>
     </div>
   );

@@ -1,12 +1,15 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { User, Bell, Shield, CreditCard, Palette, Globe } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Avatar } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
+import { useAuth } from "@/lib/supabase/auth-context";
+import { useTheme } from "@/lib/theme-provider";
+import { createClient } from "@/lib/supabase/client";
 
 type SettingsTab = "profile" | "notifications" | "privacy" | "billing" | "appearance" | "language";
 
@@ -50,6 +53,45 @@ export default function SettingsPage() {
   const [profilePublic, setProfilePublic] = useState(true);
   const [showActivity, setShowActivity] = useState(true);
   const [twoFactor, setTwoFactor] = useState(false);
+  const [profileData, setProfileData] = useState({ full_name: "", username: "", email: "", bio: "", location: "" });
+  const [saving, setSaving] = useState(false);
+  const { user } = useAuth();
+  const { theme, setTheme } = useTheme();
+
+  useEffect(() => {
+    if (!user) return;
+    setProfileData({
+      full_name: user.user_metadata?.full_name || "",
+      username: user.user_metadata?.username || "",
+      email: user.email || "",
+      bio: user.user_metadata?.bio || "",
+      location: user.user_metadata?.location || "",
+    });
+  }, [user]);
+
+  async function handleSaveProfile() {
+    setSaving(true);
+    const supabase = createClient();
+    await supabase.auth.updateUser({
+      data: {
+        full_name: profileData.full_name,
+        username: profileData.username,
+        bio: profileData.bio,
+        location: profileData.location,
+      },
+    });
+    // Also update the profiles table
+    if (user) {
+      await supabase.from("profiles").upsert({
+        id: user.id,
+        full_name: profileData.full_name,
+        username: profileData.username,
+        bio: profileData.bio,
+        location: profileData.location,
+      });
+    }
+    setSaving(false);
+  }
 
   return (
     <div className="mx-auto max-w-6xl space-y-6">
@@ -98,13 +140,13 @@ export default function SettingsPage() {
               <div className="rounded-2xl border border-border bg-card p-6 shadow-card space-y-4">
                 <h3 className="text-sm font-semibold text-card-foreground">Personal Info</h3>
                 <div className="grid grid-cols-2 gap-4">
-                  <Input label="Full Name" defaultValue="Creator Name" />
-                  <Input label="Username" defaultValue="username" />
+                  <Input label="Full Name" value={profileData.full_name} onChange={(e) => setProfileData(p => ({ ...p, full_name: e.target.value }))} />
+                  <Input label="Username" value={profileData.username} onChange={(e) => setProfileData(p => ({ ...p, username: e.target.value }))} />
                 </div>
-                <Input label="Email" type="email" defaultValue="creator@example.com" />
-                <Input label="Bio" defaultValue="Creative professional" />
-                <Input label="Location" defaultValue="Los Angeles, CA" />
-                <Button variant="gradient" size="sm">Save Changes</Button>
+                <Input label="Email" type="email" value={profileData.email} disabled />
+                <Input label="Bio" value={profileData.bio} onChange={(e) => setProfileData(p => ({ ...p, bio: e.target.value }))} />
+                <Input label="Location" value={profileData.location} onChange={(e) => setProfileData(p => ({ ...p, location: e.target.value }))} />
+                <Button variant="gradient" size="sm" onClick={handleSaveProfile} isLoading={saving}>Save Changes</Button>
               </div>
             </div>
           )}
@@ -226,15 +268,33 @@ export default function SettingsPage() {
               <h3 className="text-sm font-semibold text-card-foreground mb-4">Appearance</h3>
               <p className="text-xs text-muted-foreground mb-4">Customize how Colab looks for you</p>
               <div className="grid grid-cols-3 gap-3">
-                <button className="flex flex-col items-center gap-2 rounded-xl border-2 border-primary bg-white p-4 text-xs font-medium text-gray-900">
+                <button
+                  onClick={() => setTheme("light")}
+                  className={cn(
+                    "flex flex-col items-center gap-2 rounded-xl border-2 bg-white p-4 text-xs font-medium text-gray-900",
+                    theme === "light" ? "border-primary" : "border-border"
+                  )}
+                >
                   <div className="h-8 w-8 rounded-lg bg-gray-100" />
                   Light
                 </button>
-                <button className="flex flex-col items-center gap-2 rounded-xl border border-border bg-gray-900 p-4 text-xs font-medium text-white">
+                <button
+                  onClick={() => setTheme("dark")}
+                  className={cn(
+                    "flex flex-col items-center gap-2 rounded-xl border-2 bg-gray-900 p-4 text-xs font-medium text-white",
+                    theme === "dark" ? "border-primary" : "border-border"
+                  )}
+                >
                   <div className="h-8 w-8 rounded-lg bg-gray-700" />
                   Dark
                 </button>
-                <button className="flex flex-col items-center gap-2 rounded-xl border border-border bg-card p-4 text-xs font-medium text-muted-foreground">
+                <button
+                  onClick={() => setTheme("system")}
+                  className={cn(
+                    "flex flex-col items-center gap-2 rounded-xl border-2 bg-card p-4 text-xs font-medium text-muted-foreground",
+                    theme === "system" ? "border-primary" : "border-border"
+                  )}
+                >
                   <div className="h-8 w-8 rounded-lg bg-gradient-to-br from-white to-gray-900" />
                   System
                 </button>

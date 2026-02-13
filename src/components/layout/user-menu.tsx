@@ -1,9 +1,11 @@
 "use client";
 
 import { useEffect, useRef } from "react";
+import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { User, Settings, LogOut, CreditCard, HelpCircle } from "lucide-react";
 import { Avatar } from "@/components/ui/avatar";
+import { useAuth } from "@/lib/supabase/auth-context";
 
 interface UserMenuProps {
   onClose: () => void;
@@ -18,6 +20,18 @@ const menuItems = [
 
 export function UserMenu({ onClose }: UserMenuProps) {
   const ref = useRef<HTMLDivElement>(null);
+  const router = useRouter();
+  const { user, signOut } = useAuth();
+
+  const displayName = user?.user_metadata?.full_name || user?.email?.split("@")[0] || "User";
+  const displayUsername = user?.user_metadata?.username || user?.email?.split("@")[0] || "user";
+
+  async function handleSignOut() {
+    await signOut();
+    onClose();
+    router.push("/login");
+    router.refresh();
+  }
 
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
@@ -37,10 +51,10 @@ export function UserMenu({ onClose }: UserMenuProps) {
       aria-label="User menu"
     >
       <div className="flex items-center gap-3 border-b border-border p-4">
-        <Avatar alt="User Name" size="md" status="online" />
+        <Avatar alt={displayName} size="md" status="online" />
         <div className="min-w-0">
-          <p className="text-sm font-semibold text-card-foreground truncate">Creator Name</p>
-          <p className="text-xs text-muted-foreground truncate">@username</p>
+          <p className="text-sm font-semibold text-card-foreground truncate">{displayName}</p>
+          <p className="text-xs text-muted-foreground truncate">@{displayUsername}</p>
         </div>
       </div>
       <div className="p-2">
@@ -61,7 +75,7 @@ export function UserMenu({ onClose }: UserMenuProps) {
         <button
           className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm text-secondary-rose hover:bg-secondary-rose/5 transition-colors"
           role="menuitem"
-          onClick={onClose}
+          onClick={handleSignOut}
         >
           <LogOut className="h-4 w-4" aria-hidden="true" />
           Sign out

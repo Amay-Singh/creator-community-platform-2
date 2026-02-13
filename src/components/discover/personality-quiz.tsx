@@ -106,6 +106,23 @@ export function PersonalityQuiz({ onComplete, className }: PersonalityQuizProps)
   const [answers, setAnswers] = useState<Record<string, string>>({});
   const [result, setResult] = useState<PersonalityResult | null>(null);
 
+  // Load saved quiz result from localStorage on mount
+  useState(() => {
+    try {
+      const saved = localStorage.getItem("colab-quiz-result");
+      const savedAnswers = localStorage.getItem("colab-quiz-answers");
+      if (saved) {
+        setResult(JSON.parse(saved));
+        setCurrentStep(quizQuestions.length);
+      }
+      if (savedAnswers) {
+        setAnswers(JSON.parse(savedAnswers));
+      }
+    } catch {
+      // ignore
+    }
+  });
+
   const isComplete = currentStep >= quizQuestions.length;
   const currentQuestion = quizQuestions[currentStep];
   const progress = (Object.keys(answers).length / quizQuestions.length) * 100;
@@ -113,12 +130,14 @@ export function PersonalityQuiz({ onComplete, className }: PersonalityQuizProps)
   function handleSelect(value: string) {
     const newAnswers = { ...answers, [currentQuestion.id]: value };
     setAnswers(newAnswers);
+    localStorage.setItem("colab-quiz-answers", JSON.stringify(newAnswers));
 
     if (currentStep < quizQuestions.length - 1) {
       setCurrentStep(currentStep + 1);
     } else {
       const res = computeResult(newAnswers);
       setResult(res);
+      localStorage.setItem("colab-quiz-result", JSON.stringify(res));
       onComplete?.(res);
     }
   }
@@ -127,6 +146,8 @@ export function PersonalityQuiz({ onComplete, className }: PersonalityQuizProps)
     setCurrentStep(0);
     setAnswers({});
     setResult(null);
+    localStorage.removeItem("colab-quiz-result");
+    localStorage.removeItem("colab-quiz-answers");
   }
 
   return (

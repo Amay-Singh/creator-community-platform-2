@@ -60,10 +60,30 @@
 }
 
 @media (prefers-color-scheme: dark) {
-  :root {
+  :root:not(.light) {
     --background: #0A0A1A;
     --foreground: #F1F5F9;
   }
+}
+
+.dark {
+  --background: #0A0A1A;
+  --foreground: #F1F5F9;
+}
+
+.dark,
+:root.dark {
+  --color-card: #1E1E2E;
+  --color-card-foreground: #F1F5F9;
+  --color-border: #334155;
+  --color-muted: #1E293B;
+  --color-muted-foreground: #94A3B8;
+  --color-input: #334155;
+}
+
+.light {
+  --background: #FAFBFF;
+  --foreground: #0F172A;
 }
 
 body {
